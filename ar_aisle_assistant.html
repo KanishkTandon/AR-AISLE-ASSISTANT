@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Aisle Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0071ce, #004c87);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        .camera-view {
+            height: 300px;
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+            position: relative;
+            overflow: hidden;
+            border-bottom: 3px solid #0071ce;
+        }
+
+        .camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .camera-feed.active {
+            display: block;
+        }
+
+        .camera-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 113, 206, 0.9);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            min-width: 50px;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(0, 113, 206, 1);
+            transform: scale(1.05);
+        }
+
+        .ai-detection {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            z-index: 90;
+            display: none;
+        }
+
+        .ai-detection.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .detection-dots {
+            display: inline-block;
+            margin-left: 5px;
+        }
+
+        .detection-dot {
+            display: inline-block;
+            width: 3px;
+            height: 3px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin: 0 1px;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+
+        .detection-dot:nth-child(2) { animation-delay: 0.3s; }
+        .detection-dot:nth-child(3) { animation-delay: 0.6s; }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .ar-markers {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 80;
+        }
+
+        .ar-marker {
+            position: absolute;
+            background: rgba(0, 255, 136, 0.2);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 5px 10px;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            backdrop-filter: blur(5px);
+            animation: pulse-marker 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-marker {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+
+        .path-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 70;
+        }
+
+        .path-line {
+            position: absolute;
+            background: linear-gradient(90deg, transparent, #00ff88, transparent);
+            height: 4px;
+            border-radius: 2px;
+            animation: flow 2s linear infinite;
+        }
+
+        @keyframes flow {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+
+
+        .store-layout {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: 
+                linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            animation: gridMove 10s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 20px; }
+        }
+
+        .ar-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+
+        .direction-arrow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px;
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0,255,136,0.8);
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+
+
+        .voice-indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 25px;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transform: translateY(80px);
+            transition: transform 0.3s ease;
+            z-index: 200;
+            text-align: center;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        .voice-indicator.show {
+            transform: translateY(0);
+        }
+
+        .ai-status {
+            background: #e8f5e8;
+            border-left: 4px solid #00ff88;
+            padding: 15px;
+            margin: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .ai-status-icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .ai-status-text {
+            font-weight: 500;
+            color: #2d5a2d;
+        }
+
+        .voice-wave {
+            display: inline-block;
+            width: 2px;
+            height: 12px;
+            background: #00ff88;
+            margin: 0 1px;
+            animation: wave 1s ease-in-out infinite;
+            vertical-align: middle;
+        }
+
+        .voice-wave:nth-child(2) { animation-delay: 0.1s; }
+        .voice-wave:nth-child(3) { animation-delay: 0.2s; }
+        .voice-wave:nth-child(4) { animation-delay: 0.3s; }
+
+        @keyframes wave {
+            0%, 100% { height: 8px; }
+            50% { height: 16px; }
+        }
+
+        .product-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .controls {
+            padding: 20px;
+            background: white;
+        }
+
+        .search-section {
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-box:focus {
+            border-color: #0071ce;
+            box-shadow: 0 0 0 3px rgba(0,113,206,0.1);
+        }
+
+        .aisle-select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 14px;
+            outline: none;
+            background: white;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .aisle-select:focus {
+            border-color: #0071ce;
+            box-shadow: 0 0 0 3px rgba(0,113,206,0.1);
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .action-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .recommendations {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .recommendations h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .product-emoji {
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+
+        .product-name {
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .product-price {
+            color: #0071ce;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px 20px 0 0;
+            font-size: 12px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .location-info {
+            background: #e8f5e8;
+            border-left: 4px solid #00ff88;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .distance-info {
+            color: #666;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .ar-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,255,136,0.2);
+            color: #00ff88;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0,255,136,0.3);
+        }
+
+        .scanning-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #00ff88, transparent);
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .offer-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            z-index: 1000;
+            max-width: 300px;
+            width: 90%;
+            text-align: center;
+            display: none;
+        }
+
+        .offer-popup.show {
+            display: block;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .offer-popup h3 {
+            color: #ff6b6b;
+            margin-bottom: 10px;
+        }
+
+        .offer-popup .discount {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin: 10px 0;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 AR Aisle Assistant</h1>
+            <p>Walmart Store Navigation</p>
+        </div>
+
+        <div class="camera-view" id="cameraView">
+            <video id="cameraFeed" class="camera-feed" autoplay muted playsinline></video>
+            <div class="camera-placeholder" id="cameraPlaceholder">
+                <div class="store-layout"></div>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">📷</div>
+                    <div style="font-size: 14px;">Initializing AR Camera...</div>
+                </div>
+            </div>
+            
+            <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Toggle Fullscreen">⛶</button>
+            
+            <div class="ai-detection" id="aiDetection">
+                🤖 AI Analysis: <span id="detectionText">Analyzing environment</span>
+                <span class="detection-dots">
+                    <span class="detection-dot"></span>
+                    <span class="detection-dot"></span>
+                    <span class="detection-dot"></span>
+                </span>
+            </div>
+                
+                <div class="direction-arrow" id="directionArrow">⬆️</div>
+                
+                <div class="ar-markers" id="arMarkers"></div>
+                <div class="path-overlay" id="pathOverlay"></div>
+                
+                <div class="product-info">
+                    <div><strong>🎯 Target Item: <span id="targetItem">Welcome to Walmart</span></strong></div>
+                    <div class="distance-info">📍 <span id="locationInfo">Main Entrance - Start your shopping</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-status">
+            <span class="ai-status-icon">🤖</span>
+            <span class="ai-status-text" id="aiStatusText">AI System Ready - Location detection active</span>
+        </div>
+
+        <div class="controls">
+            <div class="search-section">
+                <input type="text" class="search-box" placeholder="🔍 Search for products..." id="searchInput">
+                <select class="aisle-select" id="aisleSelect" onchange="navigateToAisle()">
+                    <option value="">🗺️ Quick Navigate to Section...</option>
+                    <option value="produce">🥕 Fresh Produce</option>
+                    <option value="dairy">🥛 Dairy & Eggs</option>
+                    <option value="meat">🥩 Meat & Seafood</option>
+                    <option value="bakery">🍞 Bakery</option>
+                    <option value="deli">🥪 Deli Counter</option>
+                    <option value="frozen">🧊 Frozen Foods</option>
+                    <option value="aisle1">🥫 Aisle 1 - Canned Goods</option>
+                    <option value="aisle2">🌶️ Aisle 2 - International</option>
+                    <option value="aisle3">🥣 Aisle 3 - Breakfast & Cereal</option>
+                    <option value="aisle4">🍿 Aisle 4 - Snacks & Candy</option>
+                    <option value="aisle5">🥤 Aisle 5 - Beverages</option>
+                    <option value="aisle6">🧴 Aisle 6 - Health & Beauty</option>
+                    <option value="aisle7">💊 Aisle 7 - Pharmacy Items</option>
+                    <option value="aisle8">👶 Aisle 8 - Baby Care</option>
+                    <option value="aisle9">🐕 Aisle 9 - Pet Supplies</option>
+                    <option value="aisle10">🧽 Aisle 10 - Household</option>
+                    <option value="electronics">📱 Electronics</option>
+                    <option value="clothing">👕 Clothing</option>
+                    <option value="homeGarden">🏠 Home & Garden</option>
+                    <option value="automotive">🚗 Automotive</option>
+                    <option value="pharmacy">💊 Pharmacy Counter</option>
+                    <option value="vision">👓 Vision Center</option>
+                    <option value="checkout">🛒 Checkout</option>
+                </select>
+            </div>
+
+            <div class="location-info">
+                <div><strong>📍 Current Location: <span id="currentLocation">Main Entrance</span></strong></div>
+                <div class="distance-info" id="currentSection">Welcome Center</div>
+            </div>
+
+            <div class="quick-actions">
+                <button class="action-btn" onclick="findProduct('groceries')">🥕 Groceries</button>
+                <button class="action-btn" onclick="findProduct('pharmacy')">💊 Pharmacy</button>
+                <button class="action-btn" onclick="findProduct('electronics')">📱 Electronics</button>
+                <button class="action-btn" onclick="findProduct('clothing')">👕 Clothing</button>
+                <button class="action-btn" onclick="findProduct('automotive')">🚗 Auto Center</button>
+                <button class="action-btn" onclick="findProduct('home-garden')">🏠 Home & Garden</button>
+                <button class="action-btn" onclick="findProduct('deli')">🥪 Deli</button>
+                <button class="action-btn" onclick="showOffer()">🎁 Offers</button>
+            </div>
+
+            <div class="recommendations">
+                <h3>🤖 AI Recommendations</h3>
+                <div class="product-grid">
+                    <div class="product-card" onclick="navigateToProduct('bread')">
+                        <div class="product-emoji">🍞</div>
+                        <div class="product-name">Wonder Bread</div>
+                        <div class="product-price">$2.48</div>
+                    </div>
+                    <div class="product-card" onclick="navigateToProduct('cereal')">
+                        <div class="product-emoji">🥣</div>
+                        <div class="product-name">Cheerios</div>
+                        <div class="product-price">$4.98</div>
+                    </div>
+                    <div class="product-card" onclick="navigateToProduct('banana')">
+                        <div class="product-emoji">🍌</div>
+                        <div class="product-name">Bananas</div>
+                        <div class="product-price">$1.28/lb</div>
+                    </div>
+                    <div class="product-card" onclick="navigateToProduct('coffee')">
+                        <div class="product-emoji">☕</div>
+                        <div class="product-name">Folgers Coffee</div>
+                        <div class="product-price">$8.98</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <span id="statusText">🔄 Scanning store layout... Ready to assist!</span>
+        </div>
+
+        <div class="voice-indicator" id="voiceIndicator">
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+            <span id="voiceText">🔊 "Walk straight ahead for 50 feet"</span>
+        </div>
+    </div>
+
+    <div class="offer-popup" id="offerPopup">
+        <button class="close-btn" onclick="closeOffer()">×</button>
+        <h3>🎉 Special Offer!</h3>
+        <div class="discount">25% OFF</div>
+        <p>Great Value Milk<br>Valid until end of day</p>
+        <button class="action-btn" onclick="navigateToProduct('milk')" style="margin-top: 15px;">Navigate to Product</button>
+    </div>
+
+    <script>
+        let currentProduct = null;
+        let currentLocation = { x: 0, y: 0, name: 'Main Entrance', section: 'Welcome Center' };
+        let targetLocation = null;
+        let navigationSteps = [];
+        let currentStep = 0;
+        let voiceEnabled = true;
+        let cameraActive = false;
+        let cameraStream = null;
+        let aiDetectionActive = false;
+        let locationConfidence = 0;
+        let lastDetectedLocation = null;
+        let detectionStabilityCounter = 0;
+        
+        // AI Detection patterns for different store areas
+        const aiDetectionPatterns = {
+            entrance: {
+                keywords: ['entrance', 'door', 'welcome', 'cart', 'greeter'],
+                colors: ['blue', 'white', 'yellow'],
+                confidence: 85
+            },
+            produce: {
+                keywords: ['banana', 'apple', 'vegetable', 'fruit', 'organic', 'fresh'],
+                colors: ['green', 'red', 'yellow', 'orange'],
+                confidence: 90
+            },
+            dairy: {
+                keywords: ['milk', 'cheese', 'yogurt', 'refrigerated', 'cold'],
+                colors: ['white', 'blue', 'clear'],
+                confidence: 88
+            },
+            meat: {
+                keywords: ['meat', 'beef', 'chicken', 'seafood', 'deli'],
+                colors: ['red', 'pink', 'white'],
+                confidence: 87
+            },
+            bakery: {
+                keywords: ['bread', 'bakery', 'fresh', 'oven', 'donut'],
+                colors: ['brown', 'golden', 'white'],
+                confidence: 89
+            },
+            aisles: {
+                keywords: ['aisle', 'shelf', 'package', 'box', 'can'],
+                colors: ['various', 'colorful', 'organized'],
+                confidence: 75
+            },
+            electronics: {
+                keywords: ['tv', 'phone', 'electronic', 'display', 'tech'],
+                colors: ['black', 'silver', 'blue'],
+                confidence: 92
+            },
+            clothing: {
+                keywords: ['shirt', 'clothes', 'apparel', 'hanger', 'rack'],
+                colors: ['various', 'fabric', 'textile'],
+                confidence: 80
+            },
+            checkout: {
+                keywords: ['checkout', 'register', 'cashier', 'scanner', 'payment'],
+                colors: ['blue', 'white', 'black'],
+                confidence: 95
+            }
+        };
+        
+        // Camera and AI Functions
+        async function initializeCamera() {
+            const feed = document.getElementById('cameraFeed');
+            const placeholder = document.getElementById('cameraPlaceholder');
+            
+            try {
+                // More specific constraints for better mobile compatibility
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { min: 640, ideal: 1280, max: 1920 },
+                        height: { min: 480, ideal: 720, max: 1080 },
+                        frameRate: { ideal: 30, max: 60 }
+                    },
+                    audio: false
+                };
+
+                // Request camera permission with fallback
+                try {
+                    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (backCameraError) {
+                    console.log('Back camera failed, trying front camera:', backCameraError);
+                    // Fallback to front camera if back camera fails
+                    const frontConstraints = {
+                        video: {
+                            facingMode: 'user',
+                            width: { min: 640, ideal: 1280 },
+                            height: { min: 480, ideal: 720 }
+                        },
+                        audio: false
+                    };
+                    cameraStream = await navigator.mediaDevices.getUserMedia(frontConstraints);
+                }
+                
+                feed.srcObject = cameraStream;
+                
+                // Wait for video to load
+                await new Promise((resolve) => {
+                    feed.onloadedmetadata = () => {
+                        feed.play();
+                        resolve();
+                    };
+                });
+                
+                feed.classList.add('active');
+                placeholder.style.display = 'none';
+                
+                cameraActive = true;
+                
+                // Start AI detection
+                startAIDetection();
+                updateAIStatus("Camera activated - AI location detection active");
+                showVoiceInstruction("AR Camera activated! AI is now analyzing your surroundings");
+                
+            } catch (error) {
+                console.error('Camera access failed:', error);
+                updateAIStatus("Camera unavailable - Using simulated AR mode");
+                showVoiceInstruction("Camera access failed. Using simulated AR mode");
+                
+                // Fallback to simulated AR mode
+                startSimulatedAR();
+            }
+        }
+
+        function updateAIStatus(message) {
+            const aiStatusText = document.getElementById('aiStatusText');
+            if (aiStatusText) {
+                aiStatusText.textContent = message;
+            }
+        }
+
+        function toggleFullscreen() {
+            const cameraView = document.getElementById('cameraView');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            
+            if (!document.fullscreenElement) {
+                // Enter fullscreen
+                if (cameraView.requestFullscreen) {
+                    cameraView.requestFullscreen();
+                } else if (cameraView.webkitRequestFullscreen) {
+                    cameraView.webkitRequestFullscreen();
+                } else if (cameraView.msRequestFullscreen) {
+                    cameraView.msRequestFullscreen();
+                }
+                fullscreenBtn.textContent = '🗗';
+                fullscreenBtn.title = 'Exit Fullscreen';
+            } else {
+                // Exit fullscreen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                fullscreenBtn.textContent = '⛶';
+                fullscreenBtn.title = 'Toggle Fullscreen';
+            }
+        }
+
+        // Listen for fullscreen changes
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+        function handleFullscreenChange() {
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                fullscreenBtn.textContent = '⛶';
+                fullscreenBtn.title = 'Toggle Fullscreen';
+            }
+        }
+        
+        function startSimulatedAR() {
+            const placeholder = document.getElementById('cameraPlaceholder');
+            placeholder.innerHTML = `
+                <div class="store-layout"></div>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">🕶️</div>
+                    <div style="font-size: 14px;">Simulated AR Mode</div>
+                    <div style="font-size: 12px; opacity: 0.7; margin-top: 5px;">Camera not available</div>
+                </div>
+            `;
+            
+            cameraActive = true;
+            updateAIStatus("Simulated AR Mode - Virtual location detection active");
+            
+            startAIDetection();
+        }
+        
+        function startAIDetection() {
+            aiDetectionActive = true;
+            document.getElementById('aiDetection').classList.add('active');
+            
+            // More stable AI analysis with longer intervals
+            const detectionInterval = setInterval(() => {
+                if (!aiDetectionActive) {
+                    clearInterval(detectionInterval);
+                    return;
+                }
+                
+                analyzeEnvironment();
+                updateARMarkers();
+                updatePathOverlay();
+            }, 5000); // Increased to 5 seconds for stability
+            
+            // Initial analysis
+            setTimeout(() => {
+                if (aiDetectionActive) {
+                    analyzeEnvironment();
+                }
+            }, 2000);
+        }
+        
+        function stopAIDetection() {
+            aiDetectionActive = false;
+            document.getElementById('aiDetection').classList.remove('active');
+            document.getElementById('arMarkers').innerHTML = '';
+            document.getElementById('pathOverlay').innerHTML = '';
+            locationConfidence = 0;
+        }
+        
+        function analyzeEnvironment() {
+            // Simulate AI-powered environment analysis with stability
+            const detectionText = document.getElementById('detectionText');
+            
+            // Simulate progressive detection confidence
+            setTimeout(() => {
+                detectionText.textContent = 'Processing visual data...';
+                updateAIStatus("Analyzing store environment...");
+            }, 500);
+            
+            setTimeout(() => {
+                detectionText.textContent = 'Identifying store features...';
+                updateAIStatus("Identifying store sections and products...");
+            }, 2000);
+            
+            setTimeout(() => {
+                const detectedArea = simulateLocationDetection();
+                
+                // Stability check - only update if detection is consistent
+                if (lastDetectedLocation && lastDetectedLocation.name === detectedArea.name) {
+                    detectionStabilityCounter++;
+                } else {
+                    detectionStabilityCounter = 0;
+                    lastDetectedLocation = detectedArea;
+                }
+                
+                detectionText.textContent = `Detected: ${detectedArea.name}`;
+                updateAIStatus(`Location confirmed: ${detectedArea.name} (Confidence: ${detectedArea.confidence}%)`);
+                
+                // Update location confidence
+                locationConfidence = detectedArea.confidence;
+                
+                // Only update current location if detection is stable (detected 2+ times)
+                if (detectionStabilityCounter >= 1 && locationConfidence > 70) {
+                    updateDetectedLocation(detectedArea);
+                }
+            }, 3500);
+        }
+        
+        function simulateLocationDetection() {
+            // More stable location detection - favor current location
+            const baseDetectedAreas = [
+                { name: 'Main Entrance', confidence: 85, location: storeLayout.entrance },
+                { name: 'Fresh Produce Section', confidence: 90, location: storeLayout.groceries.produce },
+                { name: 'Dairy Department', confidence: 88, location: storeLayout.groceries.dairy },
+                { name: 'Electronics Section', confidence: 92, location: storeLayout.generalMerchandise.electronics },
+                { name: 'Checkout Area', confidence: 95, location: storeLayout.checkout },
+                { name: 'Aisle 3 - Breakfast Items', confidence: 75, location: storeLayout.aisles[3] },
+                { name: 'Pharmacy Counter', confidence: 87, location: storeLayout.services.pharmacy }
+            ];
+            
+            // If we have a last detected location, favor it to reduce fluctuation
+            if (lastDetectedLocation) {
+                // 70% chance to keep the same location for stability
+                if (Math.random() < 0.7) {
+                    return lastDetectedLocation;
+                }
+            }
+            
+            // Return a random detection (in real implementation, this would be actual AI analysis)
+            return baseDetectedAreas[Math.floor(Math.random() * baseDetectedAreas.length)];
+        }
+        
+        function updateDetectedLocation(detectedArea) {
+            // Update current location based on AI detection
+            currentLocation = {
+                x: detectedArea.location.x || 0,
+                y: detectedArea.location.y || 0,
+                name: detectedArea.name,
+                section: detectedArea.location.aisle || detectedArea.location.name
+            };
+            
+            // Update UI
+            document.getElementById('currentLocation').textContent = currentLocation.name;
+            document.getElementById('currentSection').textContent = currentLocation.section;
+            
+            // Recalculate navigation if we have a target
+            if (targetLocation) {
+                navigationSteps = generateNavigationSteps(targetLocation);
+                currentStep = 0;
+                
+                if (navigationSteps.length > 0) {
+                    const firstStep = navigationSteps[currentStep];
+                    updateDirection(firstStep.direction);
+                    showVoiceInstruction(`Updated route: ${firstStep.instruction}`);
+                }
+            }
+        }
+        
+
+        
+        function updateARMarkers() {
+            if (!cameraActive || !targetLocation) return;
+            
+            const markersContainer = document.getElementById('arMarkers');
+            markersContainer.innerHTML = '';
+            
+            // Add directional markers
+            const marker = document.createElement('div');
+            marker.className = 'ar-marker';
+            marker.style.top = '40%';
+            marker.style.left = '20%';
+            marker.innerHTML = `📍 ${targetLocation.name}`;
+            markersContainer.appendChild(marker);
+            
+            // Add distance marker
+            if (currentLocation && targetLocation) {
+                const distance = Math.round(calculateDistance(currentLocation, targetLocation));
+                const distanceMarker = document.createElement('div');
+                distanceMarker.className = 'ar-marker';
+                distanceMarker.style.top = '60%';
+                distanceMarker.style.right = '20%';
+                distanceMarker.innerHTML = `📏 ${distance} ft`;
+                markersContainer.appendChild(distanceMarker);
+            }
+        }
+        
+        function updatePathOverlay() {
+            if (!cameraActive || !targetLocation) return;
+            
+            const pathContainer = document.getElementById('pathOverlay');
+            pathContainer.innerHTML = '';
+            
+            // Add visual path indicator
+            const pathLine = document.createElement('div');
+            pathLine.className = 'path-line';
+            pathLine.style.bottom = '30%';
+            pathLine.style.left = '20%';
+            pathLine.style.width = '60%';
+            pathContainer.appendChild(pathLine);
+        }
+        
+        // Walmart Store Layout (based on typical Walmart Supercenter layout)
+        const storeLayout = {
+            // Main sections with coordinates (x, y) where entrance is (0, 0)
+            entrance: { x: 0, y: 0, name: 'Main Entrance' },
+            
+            // Grocery Section (Left side from entrance)
+            groceries: {
+                produce: { x: -50, y: 20, name: 'Fresh Produce', aisle: 'Produce' },
+                dairy: { x: -80, y: 40, name: 'Dairy & Eggs', aisle: 'Dairy Wall' },
+                meat: { x: -60, y: 60, name: 'Meat & Seafood', aisle: 'Meat Department' },
+                frozen: { x: -40, y: 80, name: 'Frozen Foods', aisle: 'Frozen Aisles' },
+                bakery: { x: -20, y: 60, name: 'Bakery', aisle: 'Bakery' },
+                deli: { x: -20, y: 40, name: 'Deli', aisle: 'Deli Counter' }
+            },
+            
+            // Center Aisles (Packaged goods)
+            aisles: {
+                1: { x: -20, y: 100, name: 'Canned Goods & Condiments', aisle: 'Aisle 1' },
+                2: { x: -10, y: 100, name: 'International Foods', aisle: 'Aisle 2' },
+                3: { x: 0, y: 100, name: 'Breakfast & Cereal', aisle: 'Aisle 3' },
+                4: { x: 10, y: 100, name: 'Snacks & Candy', aisle: 'Aisle 4' },
+                5: { x: 20, y: 100, name: 'Beverages', aisle: 'Aisle 5' },
+                6: { x: 30, y: 100, name: 'Health & Beauty', aisle: 'Aisle 6' },
+                7: { x: 40, y: 100, name: 'Pharmacy', aisle: 'Aisle 7' },
+                8: { x: 50, y: 100, name: 'Baby Care', aisle: 'Aisle 8' },
+                9: { x: 60, y: 100, name: 'Pet Supplies', aisle: 'Aisle 9' },
+                10: { x: 70, y: 100, name: 'Household Essentials', aisle: 'Aisle 10' }
+            },
+            
+            // General Merchandise (Right side from entrance)
+            generalMerchandise: {
+                electronics: { x: 80, y: 20, name: 'Electronics', aisle: 'Electronics' },
+                clothing: { x: 100, y: 40, name: 'Clothing', aisle: 'Apparel' },
+                homeGarden: { x: 120, y: 60, name: 'Home & Garden', aisle: 'Home & Garden' },
+                automotive: { x: 140, y: 20, name: 'Automotive', aisle: 'Auto Center' },
+                toys: { x: 80, y: 80, name: 'Toys', aisle: 'Toy Department' },
+                sporting: { x: 100, y: 80, name: 'Sporting Goods', aisle: 'Sports' }
+            },
+            
+            // Services
+            services: {
+                pharmacy: { x: 40, y: 120, name: 'Pharmacy', aisle: 'Pharmacy Counter' },
+                vision: { x: 50, y: 120, name: 'Vision Center', aisle: 'Vision Center' },
+                tire: { x: 160, y: 40, name: 'Tire & Lube', aisle: 'Tire Center' },
+                moneycenter: { x: 20, y: 10, name: 'Money Center', aisle: 'Money Services' }
+            },
+            
+            // Checkouts
+            checkout: { x: 0, y: -20, name: 'Checkout', aisle: 'Front End' }
+        };
+        
+        // Comprehensive product database
+        const productDatabase = {
+            // Fresh Produce
+            'bananas': { location: storeLayout.groceries.produce, price: '$1.28/lb' },
+            'apples': { location: storeLayout.groceries.produce, price: '$1.98/lb' },
+            'oranges': { location: storeLayout.groceries.produce, price: '$2.48/3lb bag' },
+            'lettuce': { location: storeLayout.groceries.produce, price: '$1.48' },
+            'tomatoes': { location: storeLayout.groceries.produce, price: '$2.98/lb' },
+            
+            // Dairy & Eggs
+            'milk': { location: storeLayout.groceries.dairy, price: '$3.48/gallon' },
+            'eggs': { location: storeLayout.groceries.dairy, price: '$2.98/dozen' },
+            'cheese': { location: storeLayout.groceries.dairy, price: '$3.98' },
+            'yogurt': { location: storeLayout.groceries.dairy, price: '$4.48' },
+            'butter': { location: storeLayout.groceries.dairy, price: '$3.98' },
+            
+            // Meat & Seafood
+            'chicken': { location: storeLayout.groceries.meat, price: '$1.98/lb' },
+            'ground beef': { location: storeLayout.groceries.meat, price: '$4.98/lb' },
+            'salmon': { location: storeLayout.groceries.meat, price: '$8.98/lb' },
+            'pork chops': { location: storeLayout.groceries.meat, price: '$3.98/lb' },
+            
+            // Bakery
+            'bread': { location: storeLayout.groceries.bakery, price: '$1.98' },
+            'donuts': { location: storeLayout.groceries.bakery, price: '$3.98' },
+            'cake': { location: storeLayout.groceries.bakery, price: '$12.98' },
+            
+            // Frozen
+            'ice cream': { location: storeLayout.groceries.frozen, price: '$3.98' },
+            'frozen pizza': { location: storeLayout.groceries.frozen, price: '$1.98' },
+            'frozen vegetables': { location: storeLayout.groceries.frozen, price: '$1.48' },
+            
+            // Packaged Goods
+            'cereal': { location: storeLayout.aisles[3], price: '$3.98' },
+            'chips': { location: storeLayout.aisles[4], price: '$2.98' },
+            'soda': { location: storeLayout.aisles[5], price: '$4.98/12-pack' },
+            'coffee': { location: storeLayout.aisles[3], price: '$8.98' },
+            'pasta': { location: storeLayout.aisles[1], price: '$1.48' },
+            'soup': { location: storeLayout.aisles[1], price: '$1.28' },
+            
+            // Health & Beauty
+            'shampoo': { location: storeLayout.aisles[6], price: '$5.98' },
+            'toothpaste': { location: storeLayout.aisles[6], price: '$3.98' },
+            'vitamins': { location: storeLayout.services.pharmacy, price: '$12.98' },
+            
+            // Electronics
+            'phone charger': { location: storeLayout.generalMerchandise.electronics, price: '$19.98' },
+            'headphones': { location: storeLayout.generalMerchandise.electronics, price: '$29.98' },
+            'tv': { location: storeLayout.generalMerchandise.electronics, price: '$298.00' },
+            
+            // Clothing
+            'jeans': { location: storeLayout.generalMerchandise.clothing, price: '$19.98' },
+            't-shirt': { location: storeLayout.generalMerchandise.clothing, price: '$7.98' },
+            'shoes': { location: storeLayout.generalMerchandise.clothing, price: '$29.98' },
+            
+            // Category mappings
+            'groceries': { location: storeLayout.groceries.produce, price: 'Various' },
+            'pharmacy': { location: storeLayout.services.pharmacy, price: 'Various' },
+            'electronics': { location: storeLayout.generalMerchandise.electronics, price: 'Various' },
+            'clothing': { location: storeLayout.generalMerchandise.clothing, price: 'Various' },
+            'automotive': { location: storeLayout.generalMerchandise.automotive, price: 'Various' },
+            'home-garden': { location: storeLayout.generalMerchandise.homeGarden, price: 'Various' },
+            'deli': { location: storeLayout.groceries.deli, price: 'Various' }
+        };
+        
+        // Direction mappings
+        const directions = {
+            'N': '⬆️', 'NE': '↗️', 'E': '➡️', 'SE': '↘️',
+            'S': '⬇️', 'SW': '↙️', 'W': '⬅️', 'NW': '↖️'
+        };
+        
+        function calculateDirection(from, to) {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            
+            if (angle >= -22.5 && angle < 22.5) return 'E';
+            if (angle >= 22.5 && angle < 67.5) return 'NE';
+            if (angle >= 67.5 && angle < 112.5) return 'N';
+            if (angle >= 112.5 && angle < 157.5) return 'NW';
+            if (angle >= 157.5 || angle < -157.5) return 'W';
+            if (angle >= -157.5 && angle < -112.5) return 'SW';
+            if (angle >= -112.5 && angle < -67.5) return 'S';
+            if (angle >= -67.5 && angle < -22.5) return 'SE';
+            
+            return 'N';
+        }
+        
+        function calculateDistance(from, to) {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        function generateNavigationSteps(destination) {
+            const steps = [];
+            const totalDistance = calculateDistance(currentLocation, destination);
+            
+            // Create waypoints for complex navigation
+            const waypoints = [];
+            
+            // If going to back of store, add waypoint at main aisle
+            if (destination.y > 50) {
+                waypoints.push({ x: 0, y: 50, name: 'Main Cross Aisle' });
+            }
+            
+            // If going to far right side, add waypoint
+            if (destination.x > 80) {
+                waypoints.push({ x: 80, y: 20, name: 'Electronics Area' });
+            }
+            
+            // If going to far left side, add waypoint
+            if (destination.x < -40) {
+                waypoints.push({ x: -40, y: 20, name: 'Grocery Area' });
+            }
+            
+            waypoints.push(destination);
+            
+            let currentPos = currentLocation;
+            
+            waypoints.forEach((waypoint, index) => {
+                const distance = calculateDistance(currentPos, waypoint);
+                const direction = calculateDirection(currentPos, waypoint);
+                
+                if (distance > 10) { // Only add step if significant distance
+                    const isLastStep = index === waypoints.length - 1;
+                    const stepDistance = Math.round(distance);
+                    
+                    let instruction = '';
+                    if (index === 0) {
+                        instruction = `Head ${direction.toLowerCase()} for ${stepDistance} feet`;
+                    } else if (isLastStep) {
+                        instruction = `Turn and head ${direction.toLowerCase()} to reach your destination`;
+                    } else {
+                        instruction = `Continue ${direction.toLowerCase()} for ${stepDistance} feet`;
+                    }
+                    
+                    steps.push({
+                        direction: direction,
+                        distance: stepDistance,
+                        instruction: instruction,
+                        waypoint: waypoint.name || destination.name
+                    });
+                }
+                
+                currentPos = waypoint;
+            });
+            
+            return steps;
+        }
+        
+        function updateDirection(direction) {
+            const arrow = document.getElementById('directionArrow');
+            arrow.textContent = directions[direction];
+        }
+        
+
+        
+        function showVoiceInstruction(text) {
+            if (!voiceEnabled) return;
+            
+            const voiceIndicator = document.getElementById('voiceIndicator');
+            const voiceText = document.getElementById('voiceText');
+            
+            voiceText.innerHTML = `🔊 "${text}"`;
+            voiceIndicator.classList.add('show');
+            
+            // Simulate text-to-speech
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.8;
+                utterance.pitch = 1;
+                speechSynthesis.speak(utterance);
+            }
+            
+            // Update AI detection display if camera is active
+            if (cameraActive) {
+                updateARMarkers();
+                updatePathOverlay();
+            }
+            
+            setTimeout(() => {
+                voiceIndicator.classList.remove('show');
+            }, 4000);
+        }
+        
+        function navigateToProduct(productName) {
+            const product = productDatabase[productName.toLowerCase()];
+            
+            if (!product) {
+                showVoiceInstruction("Sorry, I couldn't find that product in our store");
+                return;
+            }
+            
+            currentProduct = productName;
+            targetLocation = product.location;
+            
+            // Generate navigation steps
+            navigationSteps = generateNavigationSteps(targetLocation);
+            currentStep = 0;
+            
+            // Update UI
+            document.getElementById('targetItem').textContent = productName.charAt(0).toUpperCase() + productName.slice(1);
+            document.getElementById('locationInfo').textContent = `${targetLocation.aisle} - ${Math.round(calculateDistance(currentLocation, targetLocation))} feet away`;
+            
+            if (navigationSteps.length > 0) {
+                const firstStep = navigationSteps[currentStep];
+                updateDirection(firstStep.direction);
+                showVoiceInstruction(firstStep.instruction);
+                
+                // Update AR overlays if camera is active
+                if (cameraActive) {
+                    updateARMarkers();
+                    updatePathOverlay();
+                }
+                
+                // Start navigation simulation
+                startNavigation();
+            } else {
+                showVoiceInstruction("You have arrived at your destination");
+            }
+        }
+        
+        function startNavigation() {
+            // Simulate walking and provide step-by-step directions
+            const navigationInterval = setInterval(() => {
+                if (currentStep < navigationSteps.length) {
+                    const step = navigationSteps[currentStep];
+                    
+                    // Simulate progress
+                    setTimeout(() => {
+                        currentStep++;
+                        
+                        if (currentStep < navigationSteps.length) {
+                            const nextStep = navigationSteps[currentStep];
+                            updateDirection(nextStep.direction);
+                            showVoiceInstruction(nextStep.instruction);
+                            
+                            // Update AR overlays
+                            if (cameraActive) {
+                                updateARMarkers();
+                                updatePathOverlay();
+                            }
+                        } else {
+                            // Arrived at destination
+                            showVoiceInstruction(`You have arrived at ${targetLocation.name}`);
+                            updateStatus(`📍 Arrived at ${currentProduct}!`);
+                            clearInterval(navigationInterval);
+                            
+                            // Update current location
+                            currentLocation = targetLocation;
+                            document.getElementById('currentLocation').textContent = targetLocation.name;
+                            document.getElementById('currentSection').textContent = targetLocation.aisle;
+                            
+                            // Clear AR overlays
+                            if (cameraActive) {
+                                setTimeout(() => {
+                                    document.getElementById('arMarkers').innerHTML = '';
+                                    document.getElementById('pathOverlay').innerHTML = '';
+                                }, 2000);
+                            }
+                        }
+                    }, 3000); // 3 seconds per step
+                }
+            }, 3500);
+        }
+        
+        function navigateToAisle() {
+            const aisleSelect = document.getElementById('aisleSelect');
+            const selectedValue = aisleSelect.value;
+            
+            if (!selectedValue) return;
+            
+            let destination;
+            
+            // Map selections to store locations
+            switch(selectedValue) {
+                case 'produce':
+                    destination = storeLayout.groceries.produce;
+                    break;
+                case 'dairy':
+                    destination = storeLayout.groceries.dairy;
+                    break;
+                case 'meat':
+                    destination = storeLayout.groceries.meat;
+                    break;
+                case 'bakery':
+                    destination = storeLayout.groceries.bakery;
+                    break;
+                case 'deli':
+                    destination = storeLayout.groceries.deli;
+                    break;
+                case 'frozen':
+                    destination = storeLayout.groceries.frozen;
+                    break;
+                case 'aisle1':
+                    destination = storeLayout.aisles[1];
+                    break;
+                case 'aisle2':
+                    destination = storeLayout.aisles[2];
+                    break;
+                case 'aisle3':
+                    destination = storeLayout.aisles[3];
+                    break;
+                case 'aisle4':
+                    destination = storeLayout.aisles[4];
+                    break;
+                case 'aisle5':
+                    destination = storeLayout.aisles[5];
+                    break;
+                case 'aisle6':
+                    destination = storeLayout.aisles[6];
+                    break;
+                case 'aisle7':
+                    destination = storeLayout.aisles[7];
+                    break;
+                case 'aisle8':
+                    destination = storeLayout.aisles[8];
+                    break;
+                case 'aisle9':
+                    destination = storeLayout.aisles[9];
+                    break;
+                case 'aisle10':
+                    destination = storeLayout.aisles[10];
+                    break;
+                case 'electronics':
+                    destination = storeLayout.generalMerchandise.electronics;
+                    break;
+                case 'clothing':
+                    destination = storeLayout.generalMerchandise.clothing;
+                    break;
+                case 'homeGarden':
+                    destination = storeLayout.generalMerchandise.homeGarden;
+                    break;
+                case 'automotive':
+                    destination = storeLayout.generalMerchandise.automotive;
+                    break;
+                case 'pharmacy':
+                    destination = storeLayout.services.pharmacy;
+                    break;
+                case 'vision':
+                    destination = storeLayout.services.vision;
+                    break;
+                case 'checkout':
+                    destination = storeLayout.checkout;
+                    break;
+                default:
+                    return;
+            }
+            
+            if (destination) {
+                targetLocation = destination;
+                currentProduct = destination.name;
+                
+                // Generate navigation steps
+                navigationSteps = generateNavigationSteps(targetLocation);
+                currentStep = 0;
+                
+                // Update UI
+                document.getElementById('targetItem').textContent = destination.name;
+                document.getElementById('locationInfo').textContent = `${destination.aisle} - ${Math.round(calculateDistance(currentLocation, targetLocation))} feet away`;
+                
+                if (navigationSteps.length > 0) {
+                    const firstStep = navigationSteps[currentStep];
+                    updateDirection(firstStep.direction);
+                    showVoiceInstruction(firstStep.instruction);
+                    
+                    // Start navigation simulation
+                    startNavigation();
+                } else {
+                    showVoiceInstruction("You have arrived at your destination");
+                }
+                
+                // Reset selector
+                aisleSelect.value = '';
+            }
+        }
+        
+        function findProduct(category) {
+            navigateToProduct(category);
+        }
+        
+        function showOffer() {
+            document.getElementById('offerPopup').classList.add('show');
+        }
+        
+        function closeOffer() {
+            document.getElementById('offerPopup').classList.remove('show');
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('statusText').textContent = message;
+            
+            setTimeout(() => {
+                document.getElementById('statusText').textContent = '🔄 Scanning store layout... Ready to assist!';
+            }, 3000);
+        }
+        
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            if (query.length > 2) {
+                const matchedProducts = Object.keys(productDatabase).filter(product => 
+                    product.includes(query) || query.includes(product)
+                );
+                
+                if (matchedProducts.length > 0) {
+                    navigateToProduct(matchedProducts[0]);
+                }
+            }
+        });
+        
+        // Initialize
+        document.getElementById('targetItem').textContent = 'Welcome to Walmart';
+        document.getElementById('locationInfo').textContent = 'Main Entrance - Start your shopping';
+        
+        // Simulate real-time updates
+        setInterval(() => {
+            const messages = [
+                '🔄 Scanning store layout...',
+                '📡 Updating inventory data...',
+                '🎯 Tracking your location...',
+                '🤖 Analyzing shopping patterns...',
+                '📱 GPS signal strong...',
+                '� Ready to assist!'
+            ];
+            
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            if (document.getElementById('statusText').textContent.includes('Ready to assist')) {
+                document.getElementById('statusText').textContent = randomMessage;
+            }
+        }, 5000);
+        
+        // Auto-show offer after 10 seconds
+        setTimeout(() => {
+            if (!document.getElementById('offerPopup').classList.contains('show')) {
+                showOffer();
+            }
+        }, 10000);
+        
+        // Initial voice greeting and auto-start camera
+        setTimeout(() => {
+            showVoiceInstruction("Welcome to Walmart! AR camera is initializing for the best navigation experience");
+            // Auto-start camera
+            initializeCamera();
+        }, 1000);
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>

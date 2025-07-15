@@ -1,0 +1,942 @@
+        function createCheckout() {
+            // Multiple checkout lanes
+            for (let i = 0; i < 6; i++) {
+                const checkoutGeometry = new THREE.BoxGeometry(2, 1.5, 8);
+                const checkoutMaterial = new THREE.MeshLambertMaterial({ color: 0x666666 });
+                const checkout = new THREE.Mesh(checkoutGeometry, checkoutMaterial);
+                checkout.position.set(-8 + (i * 2.8), 0.75, storeLayout.checkout.z);
+                checkout.castShadow = true;
+                scene.add(checkout);
+                
+                // Checkout scanner
+                const scannerGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                const scannerMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
+                const scanner = new THREE.Mesh(scannerGeometry, scannerMaterial);
+                scanner.position.set(-8 + (i * 2.8), 1.8, storeLayout.checkout.z);
+                scene.add(scanner);
+                
+                // Conveyor belt
+                const beltGeometry = new THREE.BoxGeometry(1.8, 0.1, 6);
+                const beltMaterial = new THREE.MeshLambertMaterial({ color: 0x2F4F4F });
+                const belt = new THREE.Mesh(beltGeometry, beltMaterial);
+                belt.position.set(-8 + (i * 2.8), 1.6, storeLayout.checkout.z - 1);
+                scene.add(belt);
+            }
+            
+            // Self-checkout area
+            for (let i = 0; i < 4; i++) {
+                const selfCheckoutGeometry = new THREE.BoxGeometry(1.5, 2, 2);
+                const selfCheckoutMaterial = new THREE.MeshLambertMaterial({ color: 0x4169E1 });
+                const selfCheckout = new THREE.Mesh(selfCheckoutGeometry, selfCheckoutMaterial);
+                selfCheckout.position.set(8 + (i * 2), 1, storeLayout.checkout.z + 3);
+                selfCheckout.castShadow = true;
+                scene.add(selfCheckout);
+            }
+        }<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VR Grocery Store Navigator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            pointer-events: all;
+        }
+        
+        .minimap {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            pointer-events: all;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: all;
+        }
+        
+        .control-group {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .nav-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            max-width: 200px;
+        }
+        
+        .nav-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .search-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .search-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            outline: none;
+            width: 200px;
+        }
+        
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .find-btn {
+            background: #00ff88;
+            border: none;
+            color: black;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .find-btn:hover {
+            background: #00dd77;
+            transform: scale(1.05);
+        }
+        
+        .product-highlight {
+            position: absolute;
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 10px;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            backdrop-filter: blur(5px);
+            animation: pulse 2s infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+        
+        .path-arrow {
+            position: absolute;
+            color: #00ff88;
+            font-size: 30px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
+            animation: bounce 1s infinite;
+            pointer-events: none;
+            z-index: 999;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .aisle-sign {
+            position: absolute;
+            background: #0071ce;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 500;
+        }
+        
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            pointer-events: none;
+        }
+        
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        
+        canvas:active {
+            cursor: grabbing;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            text-align: center;
+        }
+        
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="loading" id="loading">Loading VR Store...</div>
+        
+        <div class="ui-overlay">
+            <div class="hud">
+                <div><strong>🏪 FreshMart Grocery</strong></div>
+                <div>📍 Current: <span id="currentLocation">Entrance</span></div>
+                <div>🎯 Target: <span id="targetProduct">None</span></div>
+                <div>📏 Distance: <span id="distance">-</span></div>
+                <div style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
+                    Use WASD or arrow keys to move<br>
+                    Mouse to look around
+                </div>
+            </div>
+            
+            <div class="minimap">
+                <canvas id="minimapCanvas" width="200" height="150"></canvas>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <div class="nav-buttons">
+                    <div></div>
+                    <button class="nav-btn" onclick="movePlayer(0, 0, -1)">↑</button>
+                    <div></div>
+                    <button class="nav-btn" onclick="movePlayer(-1, 0, 0)">←</button>
+                    <button class="nav-btn" onclick="movePlayer(0, 0, 0)">⚫</button>
+                    <button class="nav-btn" onclick="movePlayer(1, 0, 0)">→</button>
+                    <div></div>
+                    <button class="nav-btn" onclick="movePlayer(0, 0, 1)">↓</button>
+                    <div></div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <div class="search-section">
+                    <input type="text" class="search-input" placeholder="Search products..." id="searchInput">
+                    <button class="find-btn" onclick="findProduct()">Find</button>
+                    <select class="aisle-select" id="aisleSelect" onchange="navigateToAisle()">
+                        <option value="">Navigate to Aisle...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            🕹️ Navigate with WASD keys or buttons • 🖱️ Look around with mouse • 🔍 Search for products
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, controls;
+        let player = { x: 0, y: 1.7, z: 15 };
+        let moveSpeed = 0.5;
+        let mouseX = 0, mouseY = 0;
+        let isMouseDown = false;
+        let targetProduct = null;
+        let productPositions = {};
+        let pathArrows = [];
+        let highlightedProduct = null;
+        
+        // Store layout data
+        const storeLayout = {
+            aisles: [
+                { id: 1, x: -10, z: -6, products: ['Bread', 'Cereal', 'Pasta', 'Rice', 'Oatmeal', 'Crackers'], name: 'Bakery & Grains' },
+                { id: 2, x: -6, z: -6, products: ['Milk', 'Cheese', 'Yogurt', 'Butter', 'Cream', 'Eggs'], name: 'Dairy & Eggs' },
+                { id: 3, x: -2, z: -6, products: ['Apples', 'Bananas', 'Oranges', 'Grapes', 'Lettuce', 'Carrots'], name: 'Fresh Produce' },
+                { id: 4, x: 2, z: -6, products: ['Chicken', 'Beef', 'Fish', 'Pork', 'Sausage', 'Turkey'], name: 'Meat & Seafood' },
+                { id: 5, x: 6, z: -6, products: ['Frozen Pizza', 'Ice Cream', 'Frozen Vegetables', 'Frozen Meals'], name: 'Frozen Foods' },
+                { id: 6, x: 10, z: -6, products: ['Soap', 'Shampoo', 'Toothpaste', 'Detergent', 'Tissues', 'Deodorant'], name: 'Health & Beauty' },
+                { id: 7, x: -10, z: 2, products: ['Coca Cola', 'Pepsi', 'Water', 'Juice', 'Energy Drinks', 'Coffee'], name: 'Beverages' },
+                { id: 8, x: -6, z: 2, products: ['Chips', 'Cookies', 'Candy', 'Nuts', 'Popcorn', 'Granola Bars'], name: 'Snacks & Sweets' },
+                { id: 9, x: -2, z: 2, products: ['Canned Beans', 'Tomato Sauce', 'Soup', 'Tuna', 'Pasta Sauce'], name: 'Canned Goods' },
+                { id: 10, x: 2, z: 2, products: ['Diapers', 'Baby Food', 'Formula', 'Baby Wipes', 'Bottles'], name: 'Baby Care' },
+                { id: 11, x: 6, z: 2, products: ['Dog Food', 'Cat Food', 'Pet Treats', 'Cat Litter', 'Pet Toys'], name: 'Pet Supplies' },
+                { id: 12, x: 10, z: 2, products: ['Paper Towels', 'Toilet Paper', 'Aluminum Foil', 'Trash Bags'], name: 'Household Items' },
+                { id: 13, x: -8, z: 8, products: ['Wine', 'Beer', 'Vodka', 'Whiskey', 'Champagne'], name: 'Alcoholic Beverages' },
+                { id: 14, x: -4, z: 8, products: ['Flowers', 'Greeting Cards', 'Balloons', 'Candles'], name: 'Floral & Gifts' },
+                { id: 15, x: 0, z: 8, products: ['Pharmacy', 'Prescriptions', 'Vitamins', 'First Aid', 'Thermometer'], name: 'Pharmacy' },
+                { id: 16, x: 4, z: 8, products: ['Magazines', 'Newspapers', 'Books', 'Lottery Tickets'], name: 'Media & Lottery' },
+                { id: 17, x: 8, z: 8, products: ['Phone Chargers', 'Batteries', 'Light Bulbs', 'Extension Cords'], name: 'Electronics' }
+            ],
+            checkout: { x: 0, z: 12 },
+            entrance: { x: 0, z: 15 },
+            customerService: { x: -8, z: 12 },
+            restrooms: { x: 8, z: 12 }
+        };
+
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x404040, 20, 100);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(player.x, player.y, player.z);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.setClearColor(0x87CEEB, 1);
+            
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(0, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // Create store
+            createStore();
+            
+            // Setup controls
+            setupControls();
+            
+            // Start animation loop
+            animate();
+            
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+            
+            // Initialize minimap
+            initMinimap();
+        }
+
+        function createStore() {
+            // Floor
+            const floorGeometry = new THREE.PlaneGeometry(50, 50);
+            const floorMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            // Walls
+            const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xe0e0e0 });
+            
+            // Back wall
+            const backWall = new THREE.Mesh(new THREE.PlaneGeometry(50, 12), wallMaterial);
+            backWall.position.set(0, 6, -25);
+            scene.add(backWall);
+            
+            // Side walls
+            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(50, 12), wallMaterial);
+            leftWall.position.set(-25, 6, 0);
+            leftWall.rotation.y = Math.PI / 2;
+            scene.add(leftWall);
+            
+            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(50, 12), wallMaterial);
+            rightWall.position.set(25, 6, 0);
+            rightWall.rotation.y = -Math.PI / 2;
+            scene.add(rightWall);
+            
+            // Front wall (with entrance)
+            const frontWallLeft = new THREE.Mesh(new THREE.PlaneGeometry(18, 12), wallMaterial);
+            frontWallLeft.position.set(-16, 6, 25);
+            frontWallLeft.rotation.y = Math.PI;
+            scene.add(frontWallLeft);
+            
+            const frontWallRight = new THREE.Mesh(new THREE.PlaneGeometry(18, 12), wallMaterial);
+            frontWallRight.position.set(16, 6, 25);
+            frontWallRight.rotation.y = Math.PI;
+            scene.add(frontWallRight);
+            
+            // Ceiling
+            const ceilingGeometry = new THREE.PlaneGeometry(50, 50);
+            const ceilingMaterial = new THREE.MeshLambertMaterial({ color: 0xf0f0f0 });
+            const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = 12;
+            scene.add(ceiling);
+            
+            // Create aisles
+            createAisles();
+            
+            // Create checkout area
+            createCheckout();
+            
+            // Create special areas
+            createSpecialAreas();
+            
+            // Create entrance
+            createEntrance();
+        }
+
+        function createAisles() {
+            storeLayout.aisles.forEach(aisle => {
+                // Aisle shelves
+                const shelfGeometry = new THREE.BoxGeometry(1.5, 4, 8);
+                const shelfMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                
+                // Left shelf
+                const leftShelf = new THREE.Mesh(shelfGeometry, shelfMaterial);
+                leftShelf.position.set(aisle.x - 0.8, 2, aisle.z);
+                leftShelf.castShadow = true;
+                scene.add(leftShelf);
+                
+                // Right shelf
+                const rightShelf = new THREE.Mesh(shelfGeometry, shelfMaterial);
+                rightShelf.position.set(aisle.x + 0.8, 2, aisle.z);
+                rightShelf.castShadow = true;
+                scene.add(rightShelf);
+                
+                // Top shelf connectors
+                const topShelfGeometry = new THREE.BoxGeometry(1.6, 0.2, 8);
+                const topShelf = new THREE.Mesh(topShelfGeometry, shelfMaterial);
+                topShelf.position.set(aisle.x, 4.2, aisle.z);
+                scene.add(topShelf);
+                
+                // Products on shelves
+                aisle.products.forEach((product, index) => {
+                    const productGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+                    const productMaterial = new THREE.MeshLambertMaterial({ 
+                        color: getProductColor(product) 
+                    });
+                    
+                    const productMesh = new THREE.Mesh(productGeometry, productMaterial);
+                    const side = Math.random() > 0.5 ? -0.6 : 0.6;
+                    const height = 1.5 + (index % 3) * 0.8;
+                    const depth = (index % 4 - 1.5) * 1.8;
+                    
+                    productMesh.position.set(
+                        aisle.x + side,
+                        height,
+                        aisle.z + depth
+                    );
+                    productMesh.castShadow = true;
+                    scene.add(productMesh);
+                    
+                    // Store product position
+                    productPositions[product.toLowerCase()] = {
+                        x: productMesh.position.x,
+                        y: productMesh.position.y,
+                        z: productMesh.position.z,
+                        aisle: aisle.id
+                    };
+                });
+                
+                // Aisle sign
+                const signGeometry = new THREE.BoxGeometry(2, 0.8, 0.1);
+                const signMaterial = new THREE.MeshLambertMaterial({ color: 0x0071ce });
+                const sign = new THREE.Mesh(signGeometry, signMaterial);
+                sign.position.set(aisle.x, 5, aisle.z + 4.5);
+                scene.add(sign);
+                
+                // Aisle number display
+                const numberGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.05);
+                const numberMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+                const number = new THREE.Mesh(numberGeometry, numberMaterial);
+                number.position.set(aisle.x, 5.2, aisle.z + 4.52);
+                scene.add(number);
+                
+                // Create aisle category indicators
+                const categoryColors = {
+                    'Bakery & Grains': 0xDEB887,
+                    'Dairy & Eggs': 0xFFFFFF,
+                    'Fresh Produce': 0x90EE90,
+                    'Meat & Seafood': 0xFF6B6B,
+                    'Frozen Foods': 0x87CEEB,
+                    'Health & Beauty': 0xDDA0DD,
+                    'Beverages': 0x4169E1,
+                    'Snacks & Sweets': 0xFFD700,
+                    'Canned Goods': 0xC0C0C0,
+                    'Baby Care': 0xFFB6C1,
+                    'Pet Supplies': 0x8FBC8F,
+                    'Household Items': 0xF0E68C,
+                    'Alcoholic Beverages': 0x8B0000,
+                    'Floral & Gifts': 0xFF1493,
+                    'Pharmacy': 0x00FF7F,
+                    'Media & Lottery': 0x9370DB,
+                    'Electronics': 0x1E90FF
+                };
+                
+                const categoryIndicator = new THREE.BoxGeometry(0.2, 0.2, 0.05);
+                const categoryMaterial = new THREE.MeshLambertMaterial({ 
+                    color: categoryColors[aisle.name] || 0x888888 
+                });
+                const indicator = new THREE.Mesh(categoryIndicator, categoryMaterial);
+                indicator.position.set(aisle.x + 0.7, 5.2, aisle.z + 4.52);
+                scene.add(indicator);
+            });
+        }
+
+        function createSpecialAreas() {
+            // Customer Service
+            const serviceGeometry = new THREE.BoxGeometry(4, 2, 3);
+            const serviceMaterial = new THREE.MeshLambertMaterial({ color: 0x4682B4 });
+            const serviceDesk = new THREE.Mesh(serviceGeometry, serviceMaterial);
+            serviceDesk.position.set(storeLayout.customerService.x, 1, storeLayout.customerService.z);
+            serviceDesk.castShadow = true;
+            scene.add(serviceDesk);
+            
+            // Restrooms
+            const restroomGeometry = new THREE.BoxGeometry(3, 6, 3);
+            const restroomMaterial = new THREE.MeshLambertMaterial({ color: 0x708090 });
+            const restroom = new THREE.Mesh(restroomGeometry, restroomMaterial);
+            restroom.position.set(storeLayout.restrooms.x, 3, storeLayout.restrooms.z);
+            restroom.castShadow = true;
+            scene.add(restroom);
+            
+            // Deli counter
+            const deliGeometry = new THREE.BoxGeometry(8, 2, 2);
+            const deliMaterial = new THREE.MeshLambertMaterial({ color: 0xCD853F });
+            const deli = new THREE.Mesh(deliGeometry, deliMaterial);
+            deli.position.set(-12, 1, -12);
+            deli.castShadow = true;
+            scene.add(deli);
+            
+            // Bakery counter
+            const bakeryGeometry = new THREE.BoxGeometry(6, 2, 2);
+            const bakeryMaterial = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
+            const bakery = new THREE.Mesh(bakeryGeometry, bakeryMaterial);
+            bakery.position.set(12, 1, -12);
+            bakery.castShadow = true;
+            scene.add(bakery);
+        }
+
+        function createEntrance() {
+            // Entrance doors
+            const doorGeometry = new THREE.BoxGeometry(3, 6, 0.2);
+            const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x4169E1 });
+            const door = new THREE.Mesh(doorGeometry, doorMaterial);
+            door.position.set(0, 3, 14.9);
+            scene.add(door);
+        }
+
+        function getProductColor(product) {
+            const colors = {
+                // Bakery & Grains
+                'Bread': 0xDEB887, 'Cereal': 0xFF6347, 'Pasta': 0xFFD700, 'Rice': 0xF5F5DC, 'Oatmeal': 0xD2B48C, 'Crackers': 0xF4A460,
+                // Dairy & Eggs
+                'Milk': 0xFFFFFF, 'Cheese': 0xFFFF00, 'Yogurt': 0xFFC0CB, 'Butter': 0xFFFACD, 'Cream': 0xFFFFF0, 'Eggs': 0xFFFACD,
+                // Fresh Produce
+                'Apples': 0xFF0000, 'Bananas': 0xFFFF00, 'Oranges': 0xFFA500, 'Grapes': 0x800080, 'Lettuce': 0x90EE90, 'Carrots': 0xFFA500,
+                // Meat & Seafood
+                'Chicken': 0xFFC0CB, 'Beef': 0x8B0000, 'Fish': 0x87CEEB, 'Pork': 0xFFB6C1, 'Sausage': 0x8B4513, 'Turkey': 0xDEB887,
+                // Frozen Foods
+                'Frozen Pizza': 0xFFD700, 'Ice Cream': 0xF0E68C, 'Frozen Vegetables': 0x90EE90, 'Frozen Meals': 0x87CEEB,
+                // Health & Beauty
+                'Soap': 0x98FB98, 'Shampoo': 0x87CEFA, 'Toothpaste': 0x00FF7F, 'Detergent': 0x00CED1, 'Tissues': 0xFFFFFF, 'Deodorant': 0x87CEEB,
+                // Beverages
+                'Coca Cola': 0x8B0000, 'Pepsi': 0x000080, 'Water': 0x87CEEB, 'Juice': 0xFFA500, 'Energy Drinks': 0x32CD32, 'Coffee': 0x8B4513,
+                // Snacks & Sweets
+                'Chips': 0xFFD700, 'Cookies': 0xD2691E, 'Candy': 0xFF1493, 'Nuts': 0x8B4513, 'Popcorn': 0xFFFF00, 'Granola Bars': 0xD2B48C,
+                // Canned Goods
+                'Canned Beans': 0xA0522D, 'Tomato Sauce': 0xFF0000, 'Soup': 0xFFA500, 'Tuna': 0x87CEEB, 'Pasta Sauce': 0xFF6347,
+                // Baby Care
+                'Diapers': 0xFFFFFF, 'Baby Food': 0xFFC0CB, 'Formula': 0xFFFACD, 'Baby Wipes': 0xE6E6FA, 'Bottles': 0x87CEEB,
+                // Pet Supplies
+                'Dog Food': 0x8B4513, 'Cat Food': 0xA0522D, 'Pet Treats': 0xFFD700, 'Cat Litter': 0x808080, 'Pet Toys': 0xFF1493,
+                // Household Items
+                'Paper Towels': 0xFFFFFF, 'Toilet Paper': 0xFFFACD, 'Aluminum Foil': 0xC0C0C0, 'Trash Bags': 0x000000,
+                // Alcoholic Beverages
+                'Wine': 0x8B0000, 'Beer': 0xFFD700, 'Vodka': 0xFFFFFF, 'Whiskey': 0x8B4513, 'Champagne': 0xFFFF00,
+                // Floral & Gifts
+                'Flowers': 0xFF1493, 'Greeting Cards': 0xFFFFFF, 'Balloons': 0xFF69B4, 'Candles': 0xFFFACD,
+                // Pharmacy
+                'Pharmacy': 0x00FF7F, 'Prescriptions': 0xFFFFFF, 'Vitamins': 0xFFA500, 'First Aid': 0xFF0000, 'Thermometer': 0x87CEEB,
+                // Media & Lottery
+                'Magazines': 0xFFFFFF, 'Newspapers': 0x808080, 'Books': 0x8B4513, 'Lottery Tickets': 0xFFD700,
+                // Electronics
+                'Phone Chargers': 0x000000, 'Batteries': 0xFFD700, 'Light Bulbs': 0xFFFFFF, 'Extension Cords': 0x000000
+            };
+            return colors[product] || 0x888888;
+        }F,
+                'Detergent': 0x00CED1
+            };
+            return colors[product] || 0x888888;
+        }
+
+        function setupControls() {
+            // Mouse controls
+            renderer.domElement.addEventListener('mousedown', onMouseDown);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('mouseup', onMouseUp);
+            
+            // Keyboard controls
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            
+            // Touch controls for mobile
+            renderer.domElement.addEventListener('touchstart', onTouchStart);
+            renderer.domElement.addEventListener('touchmove', onTouchMove);
+            renderer.domElement.addEventListener('touchend', onTouchEnd);
+        }
+
+        function onMouseDown(event) {
+            isMouseDown = true;
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+
+        function onMouseMove(event) {
+            if (!isMouseDown) return;
+            
+            const deltaX = event.clientX - mouseX;
+            const deltaY = event.clientY - mouseY;
+            
+            camera.rotation.y -= deltaX * 0.005;
+            camera.rotation.x -= deltaY * 0.005;
+            
+            // Limit vertical rotation
+            camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+            
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+
+        function onMouseUp() {
+            isMouseDown = false;
+        }
+
+        function onTouchStart(event) {
+            if (event.touches.length === 1) {
+                mouseX = event.touches[0].clientX;
+                mouseY = event.touches[0].clientY;
+                isMouseDown = true;
+            }
+        }
+
+        function onTouchMove(event) {
+            if (event.touches.length === 1 && isMouseDown) {
+                const deltaX = event.touches[0].clientX - mouseX;
+                const deltaY = event.touches[0].clientY - mouseY;
+                
+                camera.rotation.y -= deltaX * 0.005;
+                camera.rotation.x -= deltaY * 0.005;
+                
+                camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+                
+                mouseX = event.touches[0].clientX;
+                mouseY = event.touches[0].clientY;
+            }
+        }
+
+        function onTouchEnd() {
+            isMouseDown = false;
+        }
+
+        const keys = {};
+        function onKeyDown(event) {
+            keys[event.code] = true;
+        }
+
+        function onKeyUp(event) {
+            keys[event.code] = false;
+        }
+
+        function handleMovement() {
+            let moved = false;
+            
+            if (keys['KeyW'] || keys['ArrowUp']) {
+                player.z -= moveSpeed;
+                moved = true;
+            }
+            if (keys['KeyS'] || keys['ArrowDown']) {
+                player.z += moveSpeed;
+                moved = true;
+            }
+            if (keys['KeyA'] || keys['ArrowLeft']) {
+                player.x -= moveSpeed;
+                moved = true;
+            }
+            if (keys['KeyD'] || keys['ArrowRight']) {
+                player.x += moveSpeed;
+                moved = true;
+            }
+            
+            // Boundary checks
+            player.x = Math.max(-14, Math.min(14, player.x));
+            player.z = Math.max(-14, Math.min(15, player.z));
+            
+            camera.position.set(player.x, player.y, player.z);
+            
+            if (moved) {
+                updateLocation();
+                updateDistance();
+            }
+        }
+
+        function movePlayer(dx, dy, dz) {
+            player.x += dx * moveSpeed;
+            player.z += dz * moveSpeed;
+            
+            // Boundary checks
+            player.x = Math.max(-14, Math.min(14, player.x));
+            player.z = Math.max(-14, Math.min(15, player.z));
+            
+            camera.position.set(player.x, player.y, player.z);
+            updateLocation();
+            updateDistance();
+        }
+
+        function updateLocation() {
+            let location = 'Store';
+            
+            // Check if near entrance
+            if (player.z > 12) {
+                location = 'Entrance';
+            }
+            // Check if near checkout
+            else if (player.z > 10 && Math.abs(player.x) < 3) {
+                location = 'Checkout';
+            }
+            // Check aisles
+            else {
+                for (let aisle of storeLayout.aisles) {
+                    if (Math.abs(player.x - aisle.x) < 2 && Math.abs(player.z - aisle.z) < 5) {
+                        location = `Aisle ${aisle.id}`;
+                        break;
+                    }
+                }
+            }
+            
+            document.getElementById('currentLocation').textContent = location;
+        }
+
+        function updateDistance() {
+            if (targetProduct && productPositions[targetProduct]) {
+                const pos = productPositions[targetProduct];
+                const distance = Math.sqrt(
+                    Math.pow(player.x - pos.x, 2) + 
+                    Math.pow(player.z - pos.z, 2)
+                );
+                document.getElementById('distance').textContent = `${distance.toFixed(1)}m`;
+            }
+        }
+
+        function findProduct() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!query) return;
+            
+            const product = Object.keys(productPositions).find(p => 
+                p.includes(query) || query.includes(p)
+            );
+            
+            if (product) {
+                targetProduct = product;
+                document.getElementById('targetProduct').textContent = product.charAt(0).toUpperCase() + product.slice(1);
+                highlightProduct(product);
+                createPath(product);
+                updateDistance();
+            } else {
+                alert('Product not found in store!');
+            }
+        }
+
+        function highlightProduct(product) {
+            // Remove existing highlights
+            scene.children = scene.children.filter(child => !child.userData.isHighlight);
+            
+            const pos = productPositions[product];
+            const highlightGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const highlightMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x00ff88,
+                transparent: true,
+                opacity: 0.6
+            });
+            const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+            highlight.position.set(pos.x, pos.y, pos.z);
+            highlight.userData.isHighlight = true;
+            scene.add(highlight);
+        }
+
+        function createPath(product) {
+            // Clear existing path
+            pathArrows.forEach(arrow => scene.remove(arrow));
+            pathArrows = [];
+            
+            const pos = productPositions[product];
+            const steps = 5;
+            
+            for (let i = 1; i <= steps; i++) {
+                const t = i / steps;
+                const x = player.x + (pos.x - player.x) * t;
+                const z = player.z + (pos.z - player.z) * t;
+                
+                const arrowGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
+                const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
+                const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+                arrow.position.set(x, 0.5, z);
+                arrow.rotation.x = Math.PI;
+                
+                // Point towards target
+                const angle = Math.atan2(pos.x - x, pos.z - z);
+                arrow.rotation.y = angle;
+                
+                scene.add(arrow);
+                pathArrows.push(arrow);
+            }
+        }
+
+        function initMinimap() {
+            const canvas = document.getElementById('minimapCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            function drawMinimap() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw store outline
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(10, 10, 180, 130);
+                
+                // Draw aisles
+                ctx.fillStyle = '#8B4513';
+                storeLayout.aisles.forEach(aisle => {
+                    const x = (aisle.x + 15) * 6;
+                    const z = (aisle.z + 15) * 4.3;
+                    ctx.fillRect(x - 5, z - 20, 10, 40);
+                });
+                
+                // Draw checkout
+                ctx.fillStyle = '#666666';
+                const checkoutX = (storeLayout.checkout.x + 15) * 6;
+                const checkoutZ = (storeLayout.checkout.z + 15) * 4.3;
+                ctx.fillRect(checkoutX - 12, checkoutZ - 5, 24, 10);
+                
+                // Draw player
+                ctx.fillStyle = '#00ff88';
+                const playerX = (player.x + 15) * 6;
+                const playerZ = (player.z + 15) * 4.3;
+                ctx.beginPath();
+                ctx.arc(playerX, playerZ, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw target
+                if (targetProduct && productPositions[targetProduct]) {
+                    ctx.fillStyle = '#ff0000';
+                    const pos = productPositions[targetProduct];
+                    const targetX = (pos.x + 15) * 6;
+                    const targetZ = (pos.z + 15) * 4.3;
+                    ctx.beginPath();
+                    ctx.arc(targetX, targetZ, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            setInterval(drawMinimap, 100);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            handleMovement();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.addEventListener('resize', onWindowResize);
+        
+        // Initialize the VR store
+        init();
+        
+        // Auto-search example
+        setTimeout(() => {
+            document.getElementById('searchInput').value = 'milk';
+            findProduct();
+        }, 3000);
+    </script>
+</body>
+</html>
